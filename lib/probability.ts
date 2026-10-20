@@ -128,3 +128,20 @@ function validateBinomialParams(trials: number, probability: number): void {
 export function formatPercent(p: number, digits = 2): string {
   return `${(p * 100).toFixed(digits)}%`;
 }
+
+/**
+ * 智能百分比格式化:接近 100% / 0% 时自动提高精度,
+ * 避免把 99.9968% 这类数值显示成误导性的 "100.00%"。
+ * p 恰好等于 1 或 0 时直接显示 100% / 0%。
+ */
+export function formatPercentSmart(p: number): string {
+  if (p === 1) return '100%';
+  if (p === 0) return '0%';
+  for (const digits of [2, 3, 4, 5, 6]) {
+    const text = (p * 100).toFixed(digits);
+    if (parseFloat(text) !== 100 && parseFloat(text) !== 0) {
+      return `${text}%`;
+    }
+  }
+  return `${(p * 100).toFixed(6)}%`;
+}

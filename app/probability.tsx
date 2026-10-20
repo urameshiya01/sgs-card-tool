@@ -4,7 +4,7 @@ import { DECK } from '@/data/sgsDeck';
 import { filterCards } from '@/lib/cards';
 import type { CardKind, Suit } from '@/lib/cards';
 import {
-  formatPercent,
+  formatPercentSmart,
   hypergeometricAtLeast,
   hypergeometricMean,
   hypergeometricPMF,
@@ -121,7 +121,7 @@ export default function ProbabilityScreen() {
       {result ? (
         <View style={styles.card}>
           <View style={styles.heroResult}>
-            <Text style={styles.heroPercent}>{formatPercent(result.atLeast1)}</Text>
+            <Text style={styles.heroPercent}>{formatPercentSmart(result.atLeast1)}</Text>
             <Text style={styles.heroLabel}>抽到至少 1 张目标牌的概率</Text>
           </View>
           <Text style={styles.expectLine}>期望命中 {result.mean.toFixed(2)} 张</Text>
@@ -135,7 +135,7 @@ export default function ProbabilityScreen() {
               <View style={styles.distTrack}>
                 <View style={[styles.distFill, { width: `${Math.max(pmf * 100, 1.5)}%` }]} />
               </View>
-              <Text style={styles.distValue}>{formatPercent(pmf)}</Text>
+              <Text style={styles.distValue}>{formatPercentSmart(pmf)}</Text>
             </View>
           ))}
           <Text style={styles.formulaNote}>
