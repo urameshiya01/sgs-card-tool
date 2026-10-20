@@ -1,42 +1,22 @@
-import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Stack } from 'expo-router';
 import { useColorScheme } from 'react-native';
 
-const theme = {
-  light: { active: '#c0392b', inactive: '#999' },
-  dark: { active: '#e74c3c', inactive: '#666' },
-} as const;
-
-export default function TabLayout() {
+export default function RootLayout() {
   const scheme = useColorScheme();
-  const t = scheme === 'dark' ? theme.dark : theme.light;
+  const dark = scheme === 'dark';
 
   return (
-    <Tabs
+    <Stack
       screenOptions={{
-        headerShown: true,
-        tabBarActiveTintColor: t.active,
-        tabBarInactiveTintColor: t.inactive,
+        headerShown: false,
+        contentStyle: { backgroundColor: dark ? '#111' : '#f5f5f7' },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: '牌库统计',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="stats-chart" size={size} color={color} />
-          ),
-        }}
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="pack/[id]"
+        options={{ headerShown: true, title: '卡包编辑', presentation: 'card' }}
       />
-      <Tabs.Screen
-        name="probability"
-        options={{
-          title: '概率计算',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calculator" size={size} color={color} />
-          ),
-        }}
-      />
-    </Tabs>
+    </Stack>
   );
 }

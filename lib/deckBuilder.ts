@@ -20,38 +20,53 @@ export interface DeckRow {
 /** 牌堆表:花色 -> 点数行列表 */
 export type DeckTable = Record<Suit, DeckRow[]>;
 
+/** 基础卡包 id 常量 */
+export const PACK_IDS = {
+  standard: 'std',
+  ex: 'ex',
+  junzheng: 'jz',
+  guozhan: 'gz',
+} as const;
+
 /**
  * 由牌堆表构建卡牌列表。
- * id 规则:`牌名-花色-点数-组内序号`,EX 牌追加 `-EX`,保证全库唯一。
+ * id 规则:`牌名-花色-点数-组内序号`,EX 牌追加 `-EX`,扩展追加牌用 `xN`,保证全库唯一。
  */
-export function buildDeckFromTable(table: DeckTable, nameKind: NameKindMap): CardDef[] {
+export function buildDeckFromTable(
+  table: DeckTable,
+  nameKind: NameKindMap,
+  opts?: { onlyEx?: boolean; excludeEx?: boolean },
+): CardDef[] {
   const cards: CardDef[] = [];
   for (const suit of Object.keys(table) as Suit[]) {
     for (const row of table[suit]) {
-      row.stack.forEach((name, i) => {
-        const [kind, sub] = nameKind[name];
-        if (!kind) {
-          throw new Error(`buildDeckFromTable: 牌名「${name}」缺少类别定义`);
-        }
-        cards.push({ id: `${name}-${suit}-${row.rank}-${i}`, name, kind, suit, rank: row.rank, sub });
-      });
-      if (row.extra) {
-        row.extra.forEach((name, i) => {
+      if (!opts?.onlyEx) {
+        row.stack.forEach((name, i) => {
           const [kind, sub] = nameKind[name];
           if (!kind) {
-            throw new Error(`buildDeckFromTable: 扩展牌「${name}」缺少类别定义`);
+            throw new Error(`buildDeckFromTable: 牌名「${name}」缺少类别定义`);
           }
-          cards.push({
-            id: `${name}-${suit}-${row.rank}-x${i}`,
-            name,
-            kind,
-            suit,
-            rank: row.rank,
-            sub,
-          });
+          if (opts?.excludeEx && row.ex && name === row.ex) return; // 标准版不含 EX
+          cards.push({ id: `${name}-${suit}-${row.rank}-${i}`, name, kind, suit, rank: row.rank, sub });
         });
+        if (row.extra) {
+          row.extra.forEach((name, i) => {
+            const [kind, sub] = nameKind[name];
+            if (!kind) {
+              throw new Error(`buildDeckFromTable: 扩展牌「${name}」缺少类别定义`);
+            }
+            cards.push({
+              id: `${name}-${suit}-${row.rank}-x${i}`,
+              name,
+              kind,
+              suit,
+              rank: row.rank,
+              sub,
+            });
+          });
+        }
       }
-      if (row.ex) {
+      if (opts?.onlyEx && row.ex) {
         const [kind, sub] = nameKind[row.ex];
         if (!kind) {
           throw new Error(`buildDeckFromTable: EX 牌「${row.ex}」缺少类别定义`);

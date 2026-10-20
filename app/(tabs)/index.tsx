@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import { DECKS } from '@/data';
-import { getDeck } from '@/lib/decks';
-import type { DeckDefinition } from '@/lib/decks';
+import { useRouter } from 'expo-router';
+import { useMemo } from 'react';
+import { packsToDeck } from '@/lib/packs';
 import { countByKind, countByName, countBySuit } from '@/lib/cards';
 import type { CardKind, Suit } from '@/lib/cards';
 import { DeckSwitcher } from '@/components/DeckSwitcher';
-import { useAppStore } from '@/store/probabilityStore';
+import { usePackConfig } from '@/store/packConfigStore';
 
 const KIND_ORDER: CardKind[] = ['基本牌', '锦囊牌', '装备牌'];
 const SUIT_ORDER: Suit[] = ['♠', '♥', '♣', '♦'];
@@ -28,9 +28,19 @@ export default function DeckStatsScreen() {
   const scheme = useColorScheme();
   const dark = scheme === 'dark';
   const styles = useMemo(() => createStyles(dark), [dark]);
+  const router = useRouter();
 
-  const { deckId, setDeck } = useAppStore();
-  const deck = getDeck(DECKS, deckId);
+  const { officialPacks, customPacks, activePackIds, hydrated, toggleActive } = usePackConfig();
+
+  useEffect(() => {
+    if (!hydrated) void hydratePackConfig();
+  }, [hydrated]);
+
+  const allPacks = useMemo(() => [...officialPacks, ...customPacks], [officialPacks, customPacks]);
+  const deck = useMemo(() => {
+    const packs = allPacks.filter((p) => activePackIds.includes(p.id));
+    return packsToDeck(packs.length ? packs : [allPacks[0]]);
+  }, [allPacks, activePackIds]);
 
   const [selectedKind, setSelectedKind] = useState<CardKind | null>(null);
 
@@ -47,9 +57,16 @@ export default function DeckStatsScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>牌库统计</Text>
 
-      <Text style={styles.sectionTitle}>选择牌库</Text>
+      <Text style={styles.sectionTitle}>选择卡包(可多选合并)</Text>
       <View style={styles.card}>
-        <DeckSwitcher decks={DECKS} activeId={deck.id} onSelect={setDeck} dark={dark} />
+        <DeckSwitcher
+          decks={allPacks}
+          activeId={activePackIds}
+          onSelect={toggleActive}
+          onEdit={(id) => router.push(`/pack/${id}`)}
+          multi
+          dark={dark}
+        />
         <Text style={styles.deckDesc}>{deck.description}</Text>
       </View>
 
@@ -124,6 +141,9 @@ export default function DeckStatsScreen() {
     </ScrollView>
   );
 }
+
+import { useState } from 'react';
+import { hydratePackConfig } from '@/store/packConfigStore';
 
 const createStyles = (dark: boolean) =>
   StyleSheet.create({

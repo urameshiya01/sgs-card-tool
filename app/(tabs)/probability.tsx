@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
-import { DECKS } from '@/data';
-import { getDeck } from '@/lib/decks';
-import { filterCards, countByName } from '@/lib/cards';
+import { countByName, filterCards } from '@/lib/cards';
 import type { CardKind, Suit } from '@/lib/cards';
+import { packsToDeck } from '@/lib/packs';
 import {
   formatPercentSmart,
   hypergeometricAtLeast,
@@ -11,7 +10,7 @@ import {
   hypergeometricPMF,
 } from '@/lib/probability';
 import { DeckSwitcher } from '@/components/DeckSwitcher';
-import { useAppStore } from '@/store/probabilityStore';
+import { usePackConfig } from '@/store/packConfigStore';
 
 const KINDS: CardKind[] = ['基本牌', '锦囊牌', '装备牌'];
 const SUITS: Suit[] = ['♠', '♥', '♣', '♦'];
@@ -23,20 +22,26 @@ export default function ProbabilityScreen() {
   const styles = useMemo(() => createStyles(dark), [dark]);
 
   const {
-    deckId,
+    officialPacks,
+    customPacks,
+    activePackIds,
+    toggleActive,
     draws,
     targetName,
     targetKind,
     targetSuit,
-    setDeck,
     setDraws,
     setTargetName,
     setTargetKind,
     setTargetSuit,
-    reset,
-  } = useAppStore();
+    resetFilters: reset,
+  } = usePackConfig();
 
-  const deck = getDeck(DECKS, deckId);
+  const allPacks = useMemo(() => [...officialPacks, ...customPacks], [officialPacks, customPacks]);
+  const deck = useMemo(() => {
+    const packs = allPacks.filter((p) => activePackIds.includes(p.id));
+    return packsToDeck(packs.length ? packs : [allPacks[0]]);
+  }, [allPacks, activePackIds]);
   const total = deck.cards.length;
 
   /** 牌名快捷 chips:当前牌库里数量最多的前 6 种牌 */
@@ -74,11 +79,17 @@ export default function ProbabilityScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>概率计算</Text>
 
-      <Text style={styles.sectionTitle}>0. 选择牌库</Text>
+      <Text style={styles.sectionTitle}>0. 选择卡包(可多选合并)</Text>
       <View style={styles.card}>
-        <DeckSwitcher decks={DECKS} activeId={deck.id} onSelect={setDeck} dark={dark} />
+        <DeckSwitcher
+          decks={allPacks}
+          activeId={activePackIds}
+          onSelect={toggleActive}
+          multi
+          dark={dark}
+        />
         <Text style={styles.deckDesc}>
-          {deck.description} · 切换牌库会重置筛选条件
+          当前牌库:{deck.description} · 切换卡包不影响筛选条件
         </Text>
       </View>
 
