@@ -30,14 +30,14 @@ export interface DeckDefinition {
   cards: CardDef[];
 }
 
-/** 从卡包列表合成牌库视图 */
+/** 从卡包列表合成牌库视图(空列表 -> 空牌库) */
 export function packsToDeck(packs: CardPack[]): DeckDefinition {
-  const name = packs.map((p) => p.name).join('+');
   const cards = packs.flatMap((p) => p.cards);
+  const name = packs.map((p) => p.name).join('+');
   return {
-    id: packs.map((p) => p.id).join('+'),
-    name,
-    description: `${name} · ${cards.length} 张`,
+    id: packs.map((p) => p.id).join('+') || 'empty',
+    name: name || '未选择卡包',
+    description: packs.length ? `${name} · ${cards.length} 张` : '未选择任何卡包 · 0 张',
     cards,
   };
 }

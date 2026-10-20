@@ -82,6 +82,9 @@ check('C(52,5)', combinations(52, 5), 2598960);
   check('PMF 全分布求和 = 1', sum, 1, 1e-12);
 }
 check('B(10,0.5,≥5)', binomialAtLeast(10, 0.5, 5), 0.623046875, 1e-12);
+check('空牌库抽 0 张恰好 0 张', hypergeometricPMF(0, 0, 0, 0), 1);
+check('空牌库抽 0 张至少 1 张', hypergeometricAtLeast(0, 0, 0, 1), 0);
+check('抽超过牌库不抛错', hypergeometricAtLeast(0, 0, 4, 1), 0);
 
 // ---- 官方标准卡包 ----
 function packChecks(pack, expect) {

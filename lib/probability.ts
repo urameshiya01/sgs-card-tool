@@ -40,6 +40,9 @@ export function hypergeometricPMF(
   if (!Number.isInteger(hits) || hits < 0) {
     throw new Error('hits 必须为非负整数');
   }
+  // 抽超过牌库是不可能事件;抽 0 张则必定恰好 0 张
+  if (draws > poolSize) return 0;
+  if (draws === 0) return hits === 0 ? 1 : 0;
   if (hits > targetCount || hits > draws || draws - hits > poolSize - targetCount) {
     return 0; // 不可能事件
   }
@@ -62,6 +65,8 @@ export function hypergeometricAtLeast(
   if (!Number.isInteger(minHits) || minHits < 0) {
     throw new Error('minHits 必须为非负整数');
   }
+  if (draws > poolSize) return 0;
+  if (draws === 0) return minHits === 0 ? 1 : 0;
   const upper = Math.min(draws, targetCount);
   if (minHits > upper) return 0;
   let sum = 0;
@@ -100,18 +105,19 @@ export function binomialAtLeast(trials: number, probability: number, minHits: nu
 /** 期望命中张数:超几何分布的期望 = n * K / N */
 export function hypergeometricMean(poolSize: number, targetCount: number, draws: number): number {
   validateDrawParams(poolSize, targetCount, draws);
+  if (poolSize === 0 || draws > poolSize) return 0;
   return (draws * targetCount) / poolSize;
 }
 
 function validateDrawParams(poolSize: number, targetCount: number, draws: number): void {
-  if (!Number.isInteger(poolSize) || poolSize <= 0) {
-    throw new Error('牌库总张数必须为正整数');
+  if (!Number.isInteger(poolSize) || poolSize < 0) {
+    throw new Error('牌库总张数必须为非负整数');
   }
   if (!Number.isInteger(targetCount) || targetCount < 0 || targetCount > poolSize) {
     throw new Error('目标牌张数必须在 [0, 牌库总张数] 内');
   }
-  if (!Number.isInteger(draws) || draws < 0 || draws > poolSize) {
-    throw new Error('抽取张数必须在 [0, 牌库总张数] 内');
+  if (!Number.isInteger(draws) || draws < 0) {
+    throw new Error('抽取张数必须为非负整数');
   }
 }
 
