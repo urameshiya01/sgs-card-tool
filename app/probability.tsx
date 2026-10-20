@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
-import { DECK } from '@/data/sgsDeck';
-import { filterCards } from '@/lib/cards';
+import { DECKS } from '@/data';
+import { getDeck } from '@/lib/decks';
+import { filterCards, countByName } from '@/lib/cards';
 import type { CardKind, Suit } from '@/lib/cards';
 import {
   formatPercentSmart,
@@ -9,7 +10,8 @@ import {
   hypergeometricMean,
   hypergeometricPMF,
 } from '@/lib/probability';
-import { useProbabilityStore } from '@/store/probabilityStore';
+import { DeckSwitcher } from '@/components/DeckSwitcher';
+import { useAppStore } from '@/store/probabilityStore';
 
 const KINDS: CardKind[] = ['基本牌', '锦囊牌', '装备牌'];
 const SUITS: Suit[] = ['♠', '♥', '♣', '♦'];
@@ -20,37 +22,70 @@ export default function ProbabilityScreen() {
   const dark = scheme === 'dark';
   const styles = useMemo(() => createStyles(dark), [dark]);
 
-  const { draws, targetName, targetKind, targetSuit, setDraws, setTargetName, setTargetKind, setTargetSuit, reset } =
-    useProbabilityStore();
+  const {
+    deckId,
+    draws,
+    targetName,
+    targetKind,
+    targetSuit,
+    setDeck,
+    setDraws,
+    setTargetName,
+    setTargetKind,
+    setTargetSuit,
+    reset,
+  } = useAppStore();
+
+  const deck = getDeck(DECKS, deckId);
+  const total = deck.cards.length;
+
+  /** 牌名快捷 chips:当前牌库里数量最多的前 6 种牌 */
+  const quickNames = useMemo(() => countByName(deck.cards).slice(0, 6).map((e) => e.name), [deck]);
+
+  /** 当前输入的牌名不在快捷列表里时,补一个自定义 chip */
+  const extraNames = useMemo(
+    () => (targetName && !quickNames.includes(targetName) ? [targetName] : []),
+    [targetName, quickNames],
+  );
 
   const targetCards = useMemo(
-    () => filterCards(DECK, { name: targetName || undefined, kind: targetKind ?? undefined, suit: targetSuit ?? undefined }),
-    [targetName, targetKind, targetSuit],
+    () =>
+      filterCards(deck.cards, {
+        name: targetName || undefined,
+        kind: targetKind ?? undefined,
+        suit: targetSuit ?? undefined,
+      }),
+    [deck, targetName, targetKind, targetSuit],
   );
   const targetCount = targetCards.length;
 
   const result = useMemo(() => {
     if (targetCount === 0 || draws === 0) return null;
-    const atLeast1 = hypergeometricAtLeast(DECK.length, targetCount, draws, 1);
+    const atLeast1 = hypergeometricAtLeast(total, targetCount, draws, 1);
     const distribution = Array.from({ length: Math.min(draws, targetCount) + 1 }, (_, m) => ({
       hits: m,
-      pmf: hypergeometricPMF(DECK.length, targetCount, draws, m),
+      pmf: hypergeometricPMF(total, targetCount, draws, m),
     }));
-    const mean = hypergeometricMean(DECK.length, targetCount, draws);
+    const mean = hypergeometricMean(total, targetCount, draws);
     return { atLeast1, distribution, mean };
-  }, [targetCount, draws]);
+  }, [total, targetCount, draws]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>概率计算</Text>
-      <Text style={styles.subtitle}>
-        牌库共 {DECK.length} 张,从中抽 {draws} 张(不放回)
-      </Text>
+
+      <Text style={styles.sectionTitle}>0. 选择牌库</Text>
+      <View style={styles.card}>
+        <DeckSwitcher decks={DECKS} activeId={deck.id} onSelect={setDeck} dark={dark} />
+        <Text style={styles.deckDesc}>
+          {deck.description} · 切换牌库会重置筛选条件
+        </Text>
+      </View>
 
       <Text style={styles.sectionTitle}>1. 选择目标牌(可叠加筛选)</Text>
       <View style={styles.card}>
         <View style={styles.chipRow}>
-          {['杀', '闪', '桃', '无中生有', '顺手牵羊', '过河拆桥'].map((name) => (
+          {[...quickNames, ...extraNames].map((name) => (
             <Text
               key={name}
               style={[styles.chip, targetName === name && styles.chipActive]}
@@ -87,14 +122,14 @@ export default function ProbabilityScreen() {
         <Text style={styles.targetSummary}>
           命中目标:<Text style={styles.targetCount}>{targetName || '任意牌名'}</Text>
           {targetKind ? ` · ${targetKind}` : ''}
-          {targetSuit ? ` · ${targetSuit}` : ''} = {targetCount} 张
+          {targetSuit ? ` · ${targetSuit}` : ''} = {targetCount} 张 / 共 {total} 张
         </Text>
       </View>
 
       <Text style={styles.sectionTitle}>2. 抽取张数 n</Text>
       <View style={styles.card}>
         <View style={styles.chipRow}>
-          {DRAW_STEPS.map((n) => (
+          {DRAW_STEPS.filter((n) => n <= total).map((n) => (
             <Text key={n} style={[styles.chip, draws === n && styles.chipActive]} onPress={() => setDraws(n)}>
               {n}
             </Text>
@@ -122,16 +157,16 @@ export default function ProbabilityScreen() {
         <View style={styles.card}>
           <View style={styles.heroResult}>
             <Text style={styles.heroPercent}>{formatPercentSmart(result.atLeast1)}</Text>
-            <Text style={styles.heroLabel}>抽到至少 1 张目标牌的概率</Text>
+            <Text style={styles.heroLabel}>
+              从 {deck.name}抽 {draws} 张,至少 1 张目标牌的概率
+            </Text>
           </View>
           <Text style={styles.expectLine}>期望命中 {result.mean.toFixed(2)} 张</Text>
 
           <Text style={styles.distTitle}>命中张数分布 P(X = m)</Text>
           {result.distribution.map(({ hits, pmf }) => (
             <View key={hits} style={styles.distRow}>
-              <Text style={styles.distLabel}>
-                恰好 {hits} 张
-              </Text>
+              <Text style={styles.distLabel}>恰好 {hits} 张</Text>
               <View style={styles.distTrack}>
                 <View style={[styles.distFill, { width: `${Math.max(pmf * 100, 1.5)}%` }]} />
               </View>
@@ -139,7 +174,7 @@ export default function ProbabilityScreen() {
             </View>
           ))}
           <Text style={styles.formulaNote}>
-            模型:超几何分布 P(X=m) = C(K,m)·C(N−K,n−m) / C(N,n),N={DECK.length},K={targetCount},n={draws}
+            模型:超几何分布 P(X=m) = C(K,m)·C(N−K,n−m) / C(N,n),N={total},K={targetCount},n={draws}
           </Text>
         </View>
       ) : (
@@ -158,7 +193,6 @@ const createStyles = (dark: boolean) =>
     container: { flex: 1, backgroundColor: dark ? '#111' : '#f5f5f7' },
     content: { padding: 16, paddingBottom: 32 },
     title: { fontSize: 22, fontWeight: '700', color: dark ? '#fff' : '#1c1c1e' },
-    subtitle: { fontSize: 13, color: dark ? '#888' : '#777', marginTop: 4, marginBottom: 12 },
     sectionTitle: {
       fontSize: 15,
       fontWeight: '600',
@@ -176,7 +210,8 @@ const createStyles = (dark: boolean) =>
       shadowOffset: { width: 0, height: 2 },
       elevation: 2,
     },
-    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+    deckDesc: { marginTop: 10, fontSize: 12, color: dark ? '#888' : '#777' },
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 4 },
     chipLabel: { fontSize: 13, color: dark ? '#888' : '#777', marginRight: 2 },
     chip: {
       fontSize: 14,
@@ -205,7 +240,7 @@ const createStyles = (dark: boolean) =>
     resetLink: { marginLeft: 'auto', fontSize: 14, color: '#2980b9' },
     heroResult: { alignItems: 'center', marginVertical: 8 },
     heroPercent: { fontSize: 40, fontWeight: '800', color: '#c0392b' },
-    heroLabel: { fontSize: 13, color: dark ? '#888' : '#777', marginTop: 4 },
+    heroLabel: { fontSize: 13, color: dark ? '#888' : '#777', marginTop: 4, textAlign: 'center' },
     expectLine: { textAlign: 'center', fontSize: 13, color: dark ? '#aaa' : '#666', marginBottom: 8 },
     distTitle: {
       fontSize: 13,

@@ -1,8 +1,12 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import { DECK, DECK_SIZE } from '@/data/sgsDeck';
+import { DECKS } from '@/data';
+import { getDeck } from '@/lib/decks';
+import type { DeckDefinition } from '@/lib/decks';
 import { countByKind, countByName, countBySuit } from '@/lib/cards';
 import type { CardKind, Suit } from '@/lib/cards';
+import { DeckSwitcher } from '@/components/DeckSwitcher';
+import { useAppStore } from '@/store/probabilityStore';
 
 const KIND_ORDER: CardKind[] = ['基本牌', '锦囊牌', '装备牌'];
 const SUIT_ORDER: Suit[] = ['♠', '♥', '♣', '♦'];
@@ -25,30 +29,42 @@ export default function DeckStatsScreen() {
   const dark = scheme === 'dark';
   const styles = useMemo(() => createStyles(dark), [dark]);
 
+  const { deckId, setDeck } = useAppStore();
+  const deck = getDeck(DECKS, deckId);
+
   const [selectedKind, setSelectedKind] = useState<CardKind | null>(null);
 
-  const byKind = countByKind(DECK);
-  const bySuit = countBySuit(DECK);
-  const byName = countByName(DECK);
+  const byKind = countByKind(deck.cards);
+  const bySuit = countBySuit(deck.cards);
+  const byName = countByName(deck.cards);
   const shownNames = selectedKind
     ? byName.filter((entry) =>
-        DECK.some((c) => c.name === entry.name && c.kind === selectedKind),
+        deck.cards.some((c) => c.name === entry.name && c.kind === selectedKind),
       )
     : byName;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>牌库总览</Text>
+      <Text style={styles.title}>牌库统计</Text>
+
+      <Text style={styles.sectionTitle}>选择牌库</Text>
       <View style={styles.card}>
-        <Text style={styles.bigNumber}>{DECK_SIZE}</Text>
-        <Text style={styles.bigLabel}>张游戏牌(标准版 + EX)</Text>
+        <DeckSwitcher decks={DECKS} activeId={deck.id} onSelect={setDeck} dark={dark} />
+        <Text style={styles.deckDesc}>{deck.description}</Text>
+      </View>
+
+      <Text style={styles.sectionTitle}>牌库总览</Text>
+      <View style={styles.card}>
+        <Text style={styles.bigNumber}>{deck.cards.length}</Text>
+        <Text style={styles.bigLabel}>张游戏牌 · {deck.name}</Text>
       </View>
 
       <Text style={styles.sectionTitle}>按类型统计</Text>
       <View style={styles.card}>
         {KIND_ORDER.map((kind) => {
           const count = byKind[kind];
-          const pct = count / DECK_SIZE;
+          if (count === 0) return null;
+          const pct = count / deck.cards.length;
           const selected = selectedKind === kind;
           return (
             <View key={kind} style={styles.row}>
@@ -131,6 +147,7 @@ const createStyles = (dark: boolean) =>
       shadowOffset: { width: 0, height: 2 },
       elevation: 2,
     },
+    deckDesc: { marginTop: 10, fontSize: 12, color: dark ? '#888' : '#777' },
     bigNumber: { fontSize: 44, fontWeight: '800', color: '#c0392b' },
     bigLabel: { fontSize: 13, color: dark ? '#888' : '#777', marginTop: 4 },
     row: { flexDirection: 'row', alignItems: 'center', marginVertical: 8 },
