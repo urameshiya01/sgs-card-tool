@@ -40,6 +40,11 @@ export interface PackConfigState {
   targetSuits: Suit[];
   /** 目标筛选:点数,空数组表示不限 */
   targetRanks: string[];
+  /** 牌堆筛选(概率页):先按条件缩小牌堆再计算,空数组 = 不筛选(默认) */
+  deckFilterNames: string[];
+  deckFilterKinds: CardKind[];
+  deckFilterSuits: Suit[];
+  deckFilterRanks: string[];
 
   /** 新建空的自定义卡包 */
   createPack: (name: string) => string;
@@ -67,6 +72,13 @@ export interface PackConfigState {
   toggleTargetKind: (kind: CardKind) => void;
   toggleTargetSuit: (suit: Suit) => void;
   toggleTargetRank: (rank: string) => void;
+  /** 一次写入牌堆筛选的牌名 */
+  setDeckFilterNames: (names: string[]) => void;
+  toggleDeckFilterKind: (kind: CardKind) => void;
+  toggleDeckFilterSuit: (suit: Suit) => void;
+  toggleDeckFilterRank: (rank: string) => void;
+  /** 清空牌堆筛选(恢复为不筛选) */
+  clearDeckFilter: () => void;
   resetFilters: () => void;
 }
 
@@ -123,6 +135,10 @@ export const usePackConfig = create<PackConfigState>((set, get) => ({
   targetKinds: [],
   targetSuits: [],
   targetRanks: [],
+  deckFilterNames: [],
+  deckFilterKinds: [],
+  deckFilterSuits: [],
+  deckFilterRanks: [],
   activeDeck: packsToDeck([]),
 
   createPack: (name) => {
@@ -360,6 +376,36 @@ export const usePackConfig = create<PackConfigState>((set, get) => ({
         : [...targetRanks, rank],
     });
   },
+  setDeckFilterNames: (names) => {
+    const unique = [...new Set(names.map((name) => name.trim()).filter(Boolean))];
+    set({ deckFilterNames: unique });
+  },
+  toggleDeckFilterKind: (kind) => {
+    const { deckFilterKinds } = get();
+    set({
+      deckFilterKinds: deckFilterKinds.includes(kind)
+        ? deckFilterKinds.filter((item) => item !== kind)
+        : [...deckFilterKinds, kind],
+    });
+  },
+  toggleDeckFilterSuit: (suit) => {
+    const { deckFilterSuits } = get();
+    set({
+      deckFilterSuits: deckFilterSuits.includes(suit)
+        ? deckFilterSuits.filter((item) => item !== suit)
+        : [...deckFilterSuits, suit],
+    });
+  },
+  toggleDeckFilterRank: (rank) => {
+    const { deckFilterRanks } = get();
+    set({
+      deckFilterRanks: deckFilterRanks.includes(rank)
+        ? deckFilterRanks.filter((item) => item !== rank)
+        : [...deckFilterRanks, rank],
+    });
+  },
+  clearDeckFilter: () =>
+    set({ deckFilterNames: [], deckFilterKinds: [], deckFilterSuits: [], deckFilterRanks: [] }),
   resetFilters: () =>
     set({ draws: 4, targetNames: ['杀'], targetKinds: [], targetSuits: [], targetRanks: [] }),
 }));

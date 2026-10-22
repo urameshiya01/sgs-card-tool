@@ -53,15 +53,45 @@ export default function ProbabilityScreen() {
     toggleTargetRank,
     resetFilters: reset,
   } = usePackConfig();
+  const {
+    deckFilterNames,
+    deckFilterKinds,
+    deckFilterSuits,
+    deckFilterRanks,
+    setDeckFilterNames,
+    toggleDeckFilterKind,
+    toggleDeckFilterSuit,
+    toggleDeckFilterRank,
+    clearDeckFilter,
+  } = usePackConfig();
 
-  const deck = useMemo(() => {
+  const fullDeck = useMemo(() => {
     const packs = [...officialPacks, ...customPacks].filter((p) => activePackIds.includes(p.id));
     return packsToDeck(packs);
   }, [officialPacks, customPacks, activePackIds]);
-  const total = deck.cards.length;
+
+  /** 牌堆筛选后用于计算的牌库(默认不筛选 = 全牌库) */
+  const deck = useMemo(
+    () =>
+      filterCards(fullDeck.cards, {
+        names: deckFilterNames,
+        kinds: deckFilterKinds,
+        suits: deckFilterSuits,
+        ranks: deckFilterRanks,
+      }),
+    [fullDeck, deckFilterNames, deckFilterKinds, deckFilterSuits, deckFilterRanks],
+  );
+  const deckFiltered =
+    deckFilterNames.length > 0 ||
+    deckFilterKinds.length > 0 ||
+    deckFilterSuits.length > 0 ||
+    deckFilterRanks.length > 0;
+  const total = deck.length;
   const [drawText, setDrawText] = useState(String(draws));
   const [drawFocused, setDrawFocused] = useState(false);
   const [cardQuery, setCardQuery] = useState('');
+  /** 当前打开的牌名弹窗用途:target = 目标牌,deck = 牌堆筛选 */
+  const [pickerMode, setPickerMode] = useState<'target' | 'deck'>('target');
   const [namePickerOpen, setNamePickerOpen] = useState(false);
   const [draftNames, setDraftNames] = useState<string[]>([]);
 
@@ -71,15 +101,16 @@ export default function ProbabilityScreen() {
   const [searchMode, setSearchMode] = useState<'fuzzy' | 'exact'>('fuzzy');
 
   /** 当前牌库里的全部牌名,按数量从多到少 */
-  const allNames = useMemo(() => countByName(deck.cards), [deck]);
+  const allNames = useMemo(() => countByName(deck), [deck]);
   const pickerNames = useMemo(() => {
     const q = cardQuery.trim();
     if (!q) return allNames;
     return allNames.filter(({ name }) => (searchMode === 'exact' ? name === q : name.includes(q)));
   }, [allNames, cardQuery, searchMode]);
 
-  const openNamePicker = () => {
-    setDraftNames(targetNames);
+  const openNamePicker = (mode: 'target' | 'deck') => {
+    setPickerMode(mode);
+    setDraftNames(mode === 'target' ? targetNames : deckFilterNames);
     setCardQuery('');
     setNamePickerOpen(true);
   };
@@ -89,13 +120,14 @@ export default function ProbabilityScreen() {
     );
   };
   const confirmNames = () => {
-    setTargetNames(draftNames);
+    if (pickerMode === 'target') setTargetNames(draftNames);
+    else setDeckFilterNames(draftNames);
     setNamePickerOpen(false);
   };
 
   const targetCards = useMemo(
     () =>
-      filterCards(deck.cards, {
+      filterCards(deck, {
         names: targetNames,
         kinds: targetKinds,
         suits: targetSuits,
@@ -132,15 +164,89 @@ export default function ProbabilityScreen() {
           dark={dark}
         />
         <Text style={styles.deckDesc}>
-          {deck.cards.length === 0
+          {fullDeck.cards.length === 0
             ? '未选择卡包,可以全部取消'
-            : `当前牌库:${deck.description}`}
+            : `当前牌库:${fullDeck.description}`}
         </Text>
       </View>
 
-      <Text style={styles.sectionTitle}>1. 选择目标牌(可叠加筛选)</Text>
+      <Text style={styles.sectionTitle}>1. 筛选牌堆(可选,默认不筛选)</Text>
       <View style={styles.card}>
-        <Text style={styles.pickBtn} onPress={openNamePicker}>
+        <View style={styles.deckFilterHeader}>
+          <Text style={styles.pickBtn} onPress={() => openNamePicker('deck')}>
+            选择牌名
+          </Text>
+          {deckFiltered ? (
+            <Text style={styles.clearLink} onPress={clearDeckFilter}>
+              清除筛选
+            </Text>
+          ) : (
+            <Text style={styles.deckFilterOff}>未筛选,使用全部牌堆</Text>
+          )}
+        </View>
+        {deckFiltered ? (
+          <Text style={styles.pickedNames}>
+            {deckFilterNames.length ? deckFilterNames.join('、') : '不限牌名'}
+          </Text>
+        ) : null}
+        <View style={styles.chipRow}>
+          <Text style={styles.chipLabel}>类型:</Text>
+          {KINDS.map((kind) => (
+            <Text
+              key={kind}
+              style={[styles.chip, deckFilterKinds.includes(kind) && styles.chipActive]}
+              onPress={() => toggleDeckFilterKind(kind)}
+            >
+              {kind}
+            </Text>
+          ))}
+        </View>
+        <View style={styles.chipRow}>
+          <Text style={styles.chipLabel}>花色:</Text>
+          {SUITS.map((suit) => {
+            const active = deckFilterSuits.includes(suit);
+            return (
+              <Text
+                key={suit}
+                style={[styles.chip, active && styles.chipActive, { color: active ? '#fff' : suitColor(suit, dark) }]}
+                onPress={() => toggleDeckFilterSuit(suit)}
+              >
+                {suit}
+              </Text>
+            );
+          })}
+        </View>
+        <View style={styles.chipRow}>
+          <Text style={styles.chipLabel}>点数:</Text>
+          {RANKS.map((rank) => (
+            <Text
+              key={rank}
+              style={[styles.chip, deckFilterRanks.includes(rank) && styles.chipActive]}
+              onPress={() => toggleDeckFilterRank(rank)}
+            >
+              {rank}
+            </Text>
+          ))}
+        </View>
+        <Text style={styles.targetSummary}>
+          筛选后牌堆:
+          <Text style={styles.targetCount}>
+            {deck.length} 张
+          </Text>
+          {` / 全部 ${fullDeck.cards.length} 张`}
+          {deckFiltered
+            ? `(${[deckFilterNames, deckFilterKinds].map((list) => list.join('、')).filter(Boolean).join(' · ')}` +
+              `${deckFilterSuits.length ? ' · ' : ''}` +
+              deckFilterSuits.join('') +
+              `${deckFilterRanks.length ? ' · ' : ''}` +
+              `${deckFilterRanks.join('、')})`
+            : ''}
+        </Text>
+      </View>
+
+      <Text style={styles.sectionTitle}>2. 选择目标牌(可叠加筛选)</Text>
+      <View style={styles.card}>
+        <Text style={styles.pickBtn} onPress={() => openNamePicker('target')}>
           选择牌名
         </Text>
         <Text style={styles.pickedNames}>
@@ -202,7 +308,7 @@ export default function ProbabilityScreen() {
         </Text>
       </View>
 
-      <Text style={styles.sectionTitle}>2. 抽取张数 n</Text>
+      <Text style={styles.sectionTitle}>3. 抽取张数 n</Text>
       <View style={styles.card}>
         <View style={styles.chipRow}>
           {DRAW_STEPS.map((n) => (
@@ -233,13 +339,13 @@ export default function ProbabilityScreen() {
         </View>
       </View>
 
-      <Text style={styles.sectionTitle}>3. 计算结果</Text>
+      <Text style={styles.sectionTitle}>4. 计算结果</Text>
       {result ? (
         <View style={styles.card}>
           <View style={styles.heroResult}>
             <Text style={styles.heroPercent}>{formatPercentSmart(result.atLeast1)}</Text>
             <Text style={styles.heroLabel}>
-              从 {deck.name}抽 {draws} 张,至少 1 张目标牌的概率
+              从 {deckFiltered ? `筛选后牌堆(${total} 张)` : fullDeck.name}抽 {draws} 张,至少 1 张目标牌的概率
             </Text>
           </View>
           <Text style={styles.expectLine}>期望命中 {result.mean.toFixed(2)} 张</Text>
@@ -272,8 +378,12 @@ export default function ProbabilityScreen() {
       <View style={styles.backdrop}>
         <Pressable style={styles.backdropHit} onPress={() => setNamePickerOpen(false)} />
         <View style={styles.dialog}>
-          <Text style={styles.dialogTitle}>选择牌名</Text>
-          <Text style={styles.dialogHint}>可多选,点确认后才会用于计算</Text>
+          <Text style={styles.dialogTitle}>{pickerMode === 'deck' ? '筛选牌堆 · 选择牌名' : '选择牌名'}</Text>
+          <Text style={styles.dialogHint}>
+            {pickerMode === 'deck'
+              ? '选中的牌名将用于缩小牌堆,可多选'
+              : '可多选,点确认后才会用于计算'}
+          </Text>
           <View style={styles.searchRow}>
             <TextInput
               style={styles.searchInput}
@@ -418,6 +528,9 @@ const createStyles = (dark: boolean) =>
       textAlign: 'center',
     },
     resetLink: { marginLeft: 'auto', fontSize: 14, color: '#2980b9' },
+    deckFilterHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+    deckFilterOff: { fontSize: 13, color: dark ? '#888' : '#777' },
+    clearLink: { fontSize: 14, color: '#2980b9' },
     heroResult: { alignItems: 'center', marginVertical: 8 },
     heroPercent: { fontSize: 40, fontWeight: '800', color: '#c0392b' },
     heroLabel: { fontSize: 13, color: dark ? '#888' : '#777', marginTop: 4, textAlign: 'center' },
